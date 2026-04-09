@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>飲食紀錄追蹤</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #ffffff;
+  --bg-secondary: #f5f4f0;
+  --bg-tertiary: #eeede9;
+  --text: #1a1a18;
+  --text-secondary: #6b6a65;
+  --text-tertiary: #9e9d98;
+  --border: rgba(0,0,0,0.12);
+  --border-mid: rgba(0,0,0,0.2);
+  --green: #0f6e56;
+  --green-bg: #e1f5ee;
+  --red: #a32d2d;
+  --red-bg: #fcebeb;
+  --amber: #854f0b;
+  --amber-bg: #faeeda;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1a;
+    --bg-secondary: #252522;
+    --bg-tertiary: #2e2e2b;
+    --text: #f0efe9;
+    --text-secondary: #a09f99;
+    --text-tertiary: #6b6a65;
+    --border: rgba(255,255,255,0.1);
+    --border-mid: rgba(255,255,255,0.18);
+    --green: #5dcaa5;
+    --green-bg: #04342c;
+    --red: #f09595;
+    --red-bg: #501313;
+    --amber: #ef9f27;
+    --amber-bg: #412402;
+  }
+}
+body { font-family: -apple-system, 'Noto Sans TC', sans-serif; background: var(--bg-tertiary); color: var(--text); min-height: 100vh; }
+.app { max-width: 680px; margin: 0 auto; padding: 0 0 4rem; }
+.header { padding: 1.5rem 1rem 0; margin-bottom: 1rem; }
+.header h1 { font-size: 18px; font-weight: 500; }
+.tab-bar { display: flex; gap: 0; border-bottom: 0.5px solid var(--border); margin: 0 1rem 1.5rem; }
+.tab { padding: 9px 18px; font-size: 13px; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -0.5px; background: none; border-top: none; border-left: none; border-right: none; font-family: inherit; transition: color 0.15s; }
+.tab.active { color: var(--text); border-bottom-color: var(--text); font-weight: 500; }
+.section { display: none; padding: 0 1rem; }
+.section.active { display: block; }
+
+/* date row */
+.date-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 1.25rem; }
+.date-row input[type=date], .weight-wrap input { height: 36px; border: 0.5px solid var(--border-mid); border-radius: var(--radius-md); padding: 0 10px; font-size: 13px; font-family: inherit; background: var(--bg); color: var(--text); }
+.weight-wrap { display: flex; align-items: center; gap: 6px; }
+.weight-wrap input { width: 80px; }
+.unit { font-size: 13px; color: var(--text-secondary); }
+.toggle-group { display: flex; gap: 4px; margin-left: auto; }
+.toggle-btn { padding: 7px 14px; font-size: 13px; border: 0.5px solid var(--border-mid); border-radius: var(--radius-md); cursor: pointer; background: none; color: var(--text-secondary); font-family: inherit; transition: all 0.15s; }
+.toggle-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+/* food table */
+.food-table { width: 100%; border-collapse: collapse; margin-bottom: 0.5rem; }
+.food-table th { font-size: 11px; font-weight: 500; color: var(--text-tertiary); text-align: right; padding: 0 5px 8px; letter-spacing: 0.02em; }
+.food-table th:nth-child(2) { text-align: left; }
+.food-table td { padding: 2px 3px; vertical-align: middle; }
+.row-label { font-size: 11px; color: var(--text-tertiary); text-align: center; width: 24px; }
+.food-table input { width: 100%; height: 34px; border: 0.5px solid var(--border); border-radius: 5px; padding: 0 7px; font-size: 13px; text-align: right; background: var(--bg); color: var(--text); font-family: inherit; transition: border-color 0.15s; }
+.food-table input[type=text] { text-align: left; }
+.food-table input:focus { outline: none; border-color: var(--border-mid); }
+.food-table input.modified { border-color: var(--green); }
+
+/* summary */
+.divider { border: none; border-top: 0.5px solid var(--border); margin: 1rem 0; }
+.summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
+.metric-card { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 10px 12px; }
+.metric-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 5px; }
+.metric-value { font-size: 22px; font-weight: 500; }
+.metric-delta { font-size: 12px; margin-top: 3px; }
+.delta-over { color: var(--red); }
+.delta-under { color: var(--text-secondary); }
+.delta-ok { color: var(--green); }
+.btn-save { width: 100%; margin-top: 1.25rem; height: 44px; font-size: 14px; font-weight: 500; border-radius: var(--radius-md); cursor: pointer; background: var(--text); color: var(--bg); border: none; font-family: inherit; transition: opacity 0.15s; }
+.btn-save:hover { opacity: 0.85; }
+.btn-save:active { transform: scale(0.99); }
+.btn-secondary { background: none; border: 0.5px solid var(--border-mid); color: var(--text-secondary); }
+.btn-secondary:hover { background: var(--bg-secondary); opacity: 1; }
+.saved-badge { display: inline-block; font-size: 12px; color: var(--green); margin-top: 8px; text-align: center; width: 100%; opacity: 0; transition: opacity 0.3s; }
+.saved-badge.show { opacity: 1; }
+
+/* week */
+.week-avg-card { background: var(--bg-secondary); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1rem; }
+.week-avg-title { font-size: 13px; color: var(--text-secondary); margin-bottom: 1rem; }
+.macro-bar { margin-bottom: 10px; }
+.macro-bar-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; }
+.macro-bar-track { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.macro-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
+.week-day-card { border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-bottom: 8px; background: var(--bg); }
+.week-day-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.week-day-title { font-size: 14px; font-weight: 500; }
+.week-day-meta { font-size: 12px; color: var(--text-secondary); }
+.week-day-macros { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; font-size: 12px; color: var(--text-secondary); }
+.week-day-macros span { font-size: 15px; font-weight: 500; color: var(--text); display: block; }
+.empty-day { color: var(--text-tertiary); font-size: 13px; font-style: italic; }
+.empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-secondary); font-size: 14px; }
+
+/* trend */
+.trend-wrap { position: relative; width: 100%; height: 260px; }
+.export-row { display: flex; gap: 8px; margin-top: 1rem; }
+.export-row button { flex: 1; height: 38px; font-size: 13px; border-radius: var(--radius-md); cursor: pointer; font-family: inherit; }
+
+input[type=number] { -moz-appearance: textfield; }
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>飲食紀錄追蹤</h1>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab active" onclick="showTab('daily')">今日記錄</button>
+    <button class="tab" onclick="showTab('week')">本週彙整</button>
+    <button class="tab" onclick="showTab('trend')">體重趨勢</button>
+  </div>
+
+  <!-- 今日記錄 -->
+  <div class="section active" id="tab-daily">
+    <div class="date-row">
+      <input type="date" id="date-input" />
+      <div class="weight-wrap">
+        <input type="number" id="weight-input" placeholder="體重" step="0.05" />
+        <span class="unit">kg</span>
+      </div>
+      <div class="toggle-group">
+        <button class="toggle-btn active" id="btn-train" onclick="setDayType('train')">訓練日</button>
+        <button class="toggle-btn" id="btn-rest" onclick="setDayType('rest')">休息日</button>
+      </div>
+    </div>
+
+    <table class="food-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>食物名稱</th>
+          <th>熱量 kcal</th>
+          <th>蛋白質 g</th>
+          <th>碳水 g</th>
+          <th>脂肪 g</th>
+        </tr>
+      </thead>
+      <tbody id="food-rows"></tbody>
+    </table>
+
+    <hr class="divider" />
+    <div class="summary-grid" id="summary-grid"></div>
+
+    <button class="btn-save" onclick="saveDay()">儲存今日記錄</button>
+    <button class="btn-save btn-secondary" style="margin-top:8px;" onclick="clearDay()">清除今日資料</button>
+    <div class="saved-badge" id="saved-badge">已儲存</div>
+  </div>
+
+  <!-- 本週彙整 -->
+  <div class="section" id="tab-week">
+    <div class="week-avg-card" id="week-avg-card"><div class="empty-state">切換至今日記錄先選擇日期</div></div>
+    <div id="week-days-list"></div>
+  </div>
+
+  <!-- 體重趨勢 -->
+  <div class="section" id="tab-trend">
+    <div class="trend-wrap"><canvas id="trendChart" role="img" aria-label="體重趨勢折線圖"></canvas></div>
+    <div class="export-row">
+      <button class="btn-save btn-secondary" onclick="exportData()">匯出資料（JSON）</button>
+      <button class="btn-save btn-secondary" onclick="document.getElementById('import-file').click()">匯入資料（JSON）</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)" />
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const TARGETS = {
+  train: { kcal: 2100, p: 130, c: 240, f: 60 },
+  rest:  { kcal: 1800, p: 130, c: 180, f: 60 }
+};
+const ROW_LABELS = ['1','2','3','4','5','6','7','8','補充'];
+let dayType = 'train';
+let trendChart = null;
+
+function getToday() {
+  return new Date().toISOString().slice(0,10);
+}
+function storageKey(date) { return 'nt_day_' + date; }
+
+function getAllDays() {
+  const days = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('nt_day_')) {
+      try { days.push(JSON.parse(localStorage.getItem(k))); } catch(e){}
+    }
+  }
+  return days.sort((a,b) => a.date.localeCompare(b.date));
+}
+
+function setDayType(t) {
+  dayType = t;
+  document.getElementById('btn-train').className = 'toggle-btn' + (t==='train'?' active':'');
+  document.getElementById('btn-rest').className = 'toggle-btn' + (t==='rest'?' active':'');
+  updateSummary();
+}
+
+function buildRows(prefill) {
+  const tbody = document.getElementById('food-rows');
+  tbody.innerHTML = '';
+  ROW_LABELS.forEach((label, i) => {
+    const r = prefill && prefill[i] ? prefill[i] : {};
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="row-label">${label}</td>
+      <td><input type="text" id="f${i}_name" placeholder="食物名稱" value="${r.name||''}" oninput="markModified(this);updateSummary()" /></td>
+      <td><input type="number" id="f${i}_kcal" placeholder="—" value="${r.kcal||''}" oninput="markModified(this);updateSummary()" /></td>
+      <td><input type="number" id="f${i}_p" placeholder="—" value="${r.p||''}" oninput="markModified(this);updateSummary()" /></td>
+      <td><input type="number" id="f${i}_c" placeholder="—" value="${r.c||''}" oninput="markModified(this);updateSummary()" /></td>
+      <td><input type="number" id="f${i}_f" placeholder="—" value="${r.f||''}" oninput="markModified(this);updateSummary()" /></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  updateSummary();
+}
+
+function markModified(el) { el.classList.add('modified'); }
+
+function getRowData() {
+  return ROW_LABELS.map((_, i) => ({
+    name: (document.getElementById('f'+i+'_name')||{}).value?.trim()||'',
+    kcal: parseFloat((document.getElementById('f'+i+'_kcal')||{}).value)||0,
+    p:    parseFloat((document.getElementById('f'+i+'_p')||{}).value)||0,
+    c:    parseFloat((document.getElementById('f'+i+'_c')||{}).value)||0,
+    f:    parseFloat((document.getElementById('f'+i+'_f')||{}).value)||0,
+  }));
+}
+
+function calcTotals(rows) {
+  return {
+    kcal: rows.reduce((s,r)=>s+r.kcal,0),
+    p:    rows.reduce((s,r)=>s+r.p,0),
+    c:    rows.reduce((s,r)=>s+r.c,0),
+    f:    rows.reduce((s,r)=>s+r.f,0),
+  };
+}
+
+function updateSummary() {
+  const rows = getRowData();
+  const tot = calcTotals(rows);
+  const tgt = TARGETS[dayType];
+
+  const dP = tot.p - tgt.p;
+  const dC = tot.c - tgt.c;
+  const dF = tot.f - tgt.f;
+
+  // 超標巨量換算後加進總熱量
+  const overKcal = (dP > 0 ? dP*4 : 0) + (dC > 0 ? dC*4 : 0) + (dF > 0 ? dF*9 : 0);
+  const adjKcal = tot.kcal + overKcal;
+  const dKcal = adjKcal - tgt.kcal;
+
+  const fmt1 = v => Math.round(v*10)/10;
+
+  const metrics = [
+    {
+      label: '熱量 kcal',
+      value: Math.round(adjKcal),
+      delta: Math.round(dKcal),
+      sub: overKcal > 0 ? `(輸入 ${Math.round(tot.kcal)} + 超標換算 +${Math.round(overKcal)})` : null,
+    },
+    { label: '蛋白質 g', value: fmt1(tot.p), delta: fmt1(dP) },
+    { label: '碳水 g',   value: fmt1(tot.c), delta: fmt1(dC) },
+    { label: '脂肪 g',   value: fmt1(tot.f), delta: fmt1(dF) },
+  ];
+
+  document.getElementById('summary-grid').innerHTML = metrics.map(m => {
+    const sign = m.delta > 0 ? '+' : '';
+    const cls = m.delta > 0 ? 'delta-over' : m.delta < 0 ? 'delta-under' : 'delta-ok';
+    const deltaLabel = m.delta > 0 ? `超標 ${sign}${m.delta}` : m.delta < 0 ? `還差 ${Math.abs(m.delta)}` : '剛好達標';
+    return `<div class="metric-card">
+      <div class="metric-label">${m.label}</div>
+      <div class="metric-value">${m.value}</div>
+      <div class="metric-delta ${cls}">${deltaLabel}</div>
+      ${m.sub ? `<div style="font-size:10px;color:var(--text-tertiary);margin-top:3px;">${m.sub}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function loadDay(date) {
+  const raw = localStorage.getItem(storageKey(date));
+  if (!raw) { buildRows(null); return; }
+  const data = JSON.parse(raw);
+  dayType = data.dayType || 'train';
+  document.getElementById('btn-train').className = 'toggle-btn' + (dayType==='train'?' active':'');
+  document.getElementById('btn-rest').className = 'toggle-btn' + (dayType==='rest'?' active':'');
+  document.getElementById('weight-input').value = data.weight || '';
+  buildRows(data.rows || []);
+}
+
+function saveDay() {
+  const date = document.getElementById('date-input').value;
+  if (!date) { alert('請先選擇日期'); return; }
+  const weight = parseFloat(document.getElementById('weight-input').value) || null;
+  const rows = getRowData();
+  localStorage.setItem(storageKey(date), JSON.stringify({ date, dayType, weight, rows }));
+  // remove modified highlights
+  document.querySelectorAll('.food-table input.modified').forEach(el => el.classList.remove('modified'));
+  const badge = document.getElementById('saved-badge');
+  badge.classList.add('show');
+  setTimeout(() => badge.classList.remove('show'), 2000);
+}
+
+function clearDay() {
+  const date = document.getElementById('date-input').value;
+  if (!date) { alert('請先選擇日期'); return; }
+  if (!confirm(`確定清除 ${date} 的記錄？`)) return;
+  localStorage.removeItem(storageKey(date));
+  document.getElementById('weight-input').value = '';
+  dayType = 'train';
+  document.getElementById('btn-train').className = 'toggle-btn active';
+  document.getElementById('btn-rest').className = 'toggle-btn';
+  buildRows(null);
+}
+
+// --- Week ---
+function getWeekDays(anchorDate) {
+  const d = new Date((anchorDate || getToday()) + 'T00:00:00');
+  const day = d.getDay();
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  return Array.from({length:7}, (_, i) => {
+    const dd = new Date(mon);
+    dd.setDate(mon.getDate() + i);
+    return dd.toISOString().slice(0,10);
+  });
+}
+
+function renderWeek() {
+  const anchor = document.getElementById('date-input').value || getToday();
+  const weekDays = getWeekDays(anchor);
+  const dayNames = ['週一','週二','週三','週四','週五','週六','週日'];
+  const records = weekDays.map(d => {
+    const raw = localStorage.getItem(storageKey(d));
+    return raw ? JSON.parse(raw) : null;
+  });
+
+  const filled = records.filter(Boolean);
+  const avgCard = document.getElementById('week-avg-card');
+
+  if (filled.length === 0) {
+    avgCard.innerHTML = '<div class="empty-state">本週尚無記錄</div>';
+    document.getElementById('week-days-list').innerHTML = '';
+    return;
+  }
+
+  const sumField = (rec, field) => rec.rows ? rec.rows.reduce((s,r)=>s+(r[field]||0),0) : 0;
+
+  // 週平均：7天加總除以7（沒有記錄的天算0）
+  const weekSum = field => records.reduce((s,r) => s + (r ? sumField(r, field) : 0), 0);
+  const avgKcal = Math.round(weekSum('kcal') / 7);
+  const avgP    = Math.round(weekSum('p') / 7 * 10) / 10;
+  const avgC    = Math.round(weekSum('c') / 7 * 10) / 10;
+  const avgF    = Math.round(weekSum('f') / 7 * 10) / 10;
+
+  const weights = filled.filter(r=>r.weight).map(r=>r.weight);
+  const avgWeight = weights.length ? (Math.round(weights.reduce((a,b)=>a+b,0)/weights.length*100)/100) : null;
+
+  const tgt = TARGETS['train'];
+  const barColor = (val, target) => {
+    const pct = val / target;
+    if (pct > 1.05) return '#E24B4A';
+    if (pct < 0.85) return '#888780';
+    return '#1D9E75';
+  };
+
+  avgCard.innerHTML = `
+    <div class="week-avg-title">本週 7 天平均（${filled.length} 天有記錄）${avgWeight ? '・平均體重 <strong>' + avgWeight + '</strong> kg' : ''}</div>
+    ${[
+      { label: '熱量', val: avgKcal, unit: 'kcal', target: tgt.kcal },
+      { label: '蛋白質', val: avgP, unit: 'g', target: tgt.p },
+      { label: '碳水', val: avgC, unit: 'g', target: tgt.c },
+      { label: '脂肪', val: avgF, unit: 'g', target: tgt.f },
+    ].map(m => {
+      const pct = Math.min(100, Math.round(m.val / m.target * 100));
+      return `<div class="macro-bar">
+        <div class="macro-bar-label"><span>${m.label}</span><span>${m.val} ${m.unit} ／ 目標 ${m.target} ${m.unit}（${pct}%）</span></div>
+        <div class="macro-bar-track"><div class="macro-bar-fill" style="width:${pct}%; background:${barColor(m.val, m.target)};"></div></div>
+      </div>`;
+    }).join('')}
+  `;
+
+  document.getElementById('week-days-list').innerHTML = weekDays.map((d, i) => {
+    const r = records[i];
+    const today = getToday();
+    const isToday = d === today;
+    if (!r) {
+      return `<div class="week-day-card" style="${isToday?'border-color:var(--border-mid);':''}">
+        <div class="week-day-header">
+          <span class="week-day-title">${dayNames[i]}<span style="font-weight:400;color:var(--text-secondary);margin-left:8px;">${d}</span></span>
+          <span class="week-day-meta empty-day">未記錄</span>
+        </div>
+      </div>`;
+    }
+    const tot = calcTotals(r.rows || []);
+    const dP = tot.p - TARGETS[r.dayType||'train'].p;
+    const dC = tot.c - TARGETS[r.dayType||'train'].c;
+    const dF = tot.f - TARGETS[r.dayType||'train'].f;
+    const overKcal = (dP>0?dP*4:0)+(dC>0?dC*4:0)+(dF>0?dF*9:0);
+    const adjKcal = tot.kcal + overKcal;
+    return `<div class="week-day-card" style="${isToday?'border-color:var(--border-mid);':''}">
+      <div class="week-day-header">
+        <span class="week-day-title">${dayNames[i]}<span style="font-weight:400;color:var(--text-secondary);margin-left:8px;">${d}</span></span>
+        <span class="week-day-meta">${r.weight ? r.weight + ' kg ・ ' : ''}${r.dayType==='train'?'訓練日':'休息日'}</span>
+      </div>
+      <div class="week-day-macros">
+        <div>熱量<span>${Math.round(adjKcal)}</span></div>
+        <div>蛋白質<span>${Math.round(tot.p*10)/10}g</span></div>
+        <div>碳水<span>${Math.round(tot.c*10)/10}g</span></div>
+        <div>脂肪<span>${Math.round(tot.f*10)/10}g</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// --- Trend ---
+function renderTrend() {
+  const days = getAllDays().filter(d => d.weight);
+  const canvas = document.getElementById('trendChart');
+  if (days.length < 2) {
+    canvas.parentElement.innerHTML = '<div class="empty-state">至少需要 2 天的體重記錄才能顯示趨勢</div>';
+    return;
+  }
+  const labels = days.map(d => d.date.slice(5));
+  const weights = days.map(d => d.weight);
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: '體重 kg',
+        data: weights,
+        borderColor: '#1D9E75',
+        backgroundColor: isDark ? 'rgba(29,158,117,0.12)' : 'rgba(29,158,117,0.07)',
+        borderWidth: 2,
+        pointRadius: 4,
+        pointBackgroundColor: '#1D9E75',
+        fill: true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ctx.parsed.y.toFixed(2) + ' kg' } }
+      },
+      scales: {
+        x: {
+          grid: { color: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' },
+          ticks: { font: { size: 11 }, color: isDark ? '#6b6a65' : '#9e9d98', maxRotation: 45, autoSkip: false }
+        },
+        y: {
+          grid: { color: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' },
+          ticks: { font: { size: 11 }, color: isDark ? '#6b6a65' : '#9e9d98', callback: v => v.toFixed(1) },
+          min: Math.floor((Math.min(...weights) - 0.5) * 2) / 2,
+          max: Math.ceil( (Math.max(...weights) + 0.5) * 2) / 2,
+        }
+      }
+    }
+  });
+}
+
+// --- Export / Import ---
+function exportData() {
+  const days = getAllDays();
+  const blob = new Blob([JSON.stringify(days, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '飲食記錄_' + getToday() + '.json';
+  a.click();
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!Array.isArray(data)) { alert('格式錯誤'); return; }
+      let count = 0;
+      data.forEach(d => {
+        if (d.date) { localStorage.setItem(storageKey(d.date), JSON.stringify(d)); count++; }
+      });
+      alert(`成功匯入 ${count} 筆記錄`);
+      renderTrend();
+    } catch(err) { alert('匯入失敗：' + err.message); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// --- Tab ---
+function showTab(tab) {
+  ['daily','week','trend'].forEach((t, i) => {
+    document.querySelectorAll('.tab')[i].className = 'tab' + (t===tab?' active':'');
+    document.getElementById('tab-'+t).className = 'section' + (t===tab?' active':'');
+  });
+  if (tab === 'week') renderWeek();
+  if (tab === 'trend') renderTrend();
+}
+
+// --- Init ---
+document.getElementById('date-input').value = getToday();
+buildRows(null);
+loadDay(getToday());
+document.getElementById('date-input').addEventListener('change', function() {
+  loadDay(this.value);
+});
+</script>
+</body>
+</html>
